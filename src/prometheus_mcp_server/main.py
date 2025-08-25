@@ -13,16 +13,39 @@ def setup_environment():
     else:
         logger.info("Environment configuration loaded", source="environment variables", note="No .env file found")
 
-    if not config.url:
+    # Validate tenant configuration
+    if not config.tenants:
         logger.error(
             "Missing required configuration",
-            error="PROMETHEUS_URL environment variable is not set",
-            suggestion="Please set it to your Prometheus server URL",
-            example="http://your-prometheus-server:9090"
+            error="No tenants configured",
+            suggestion="Please set either PROMETHEUS_URL (single tenant) or PROMETHEUS_TENANTS (multi-tenant) environment variable"
         )
         return False
     
-    # MCP Server configuration validation
+    # Log tenant configuration summary
+    tenant_summary = []
+    for tenant in config.tenants:
+        auth_method = "none"
+        if tenant.username and tenant.password:
+            auth_method = "basic_auth"
+        elif tenant.token:
+            auth_method = "bearer_token"
+        
+        tenant_summary.append({
+            "name": tenant.name,
+            "url": tenant.url,
+            "authentication": auth_method,
+            "org_id": tenant.org_id if tenant.org_id else None
+        })
+    
+    logger.info(
+        "Multi-tenant Prometheus configuration validated",
+        tenant_count=len(config.tenants),
+        default_tenant=config.default_tenant,
+        tenants=tenant_summary
+    )
+
+    # Validate MCP Server configuration
     mcp_config = config.mcp_server_config
     if mcp_config:
         if str(mcp_config.mcp_server_transport).lower() not in TransportType.values():
@@ -45,19 +68,11 @@ def setup_environment():
                 example="8080"
             )
             return False
-    
-    # Determine authentication method
-    auth_method = "none"
-    if config.username and config.password:
-        auth_method = "basic_auth"
-    elif config.token:
-        auth_method = "bearer_token"
-    
     logger.info(
-        "Prometheus configuration validated",
-        server_url=config.url,
-        authentication=auth_method,
-        org_id=config.org_id if config.org_id else None
+        "MCP server configuration validated",
+        transport=mcp_config.mcp_server_transport,
+        host=mcp_config.mcp_bind_host,
+        port=mcp_config.mcp_bind_port
     )
     
     return True
