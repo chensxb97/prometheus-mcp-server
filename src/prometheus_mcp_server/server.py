@@ -352,13 +352,13 @@ async def list_metrics(limit: Optional[int] = None, tenant: Optional[str] = None
     Returns:
         Dictionary with metrics list and tenant information
     """
-    params = None
+    params = {}
     if limit is not None:
         params = {"limit": limit}
         
     tenant_name = tenant or config.default_tenant
     logger.info("Listing available metrics", tenant=tenant_name)
-    data = make_prometheus_request("label/__name__/values", params=params, tenant_name=tenant_name)
+    data = make_prometheus_request("label/__name__/values", params=params if params else None, tenant_name=tenant_name)
     
     result = {
         "metrics": data,
