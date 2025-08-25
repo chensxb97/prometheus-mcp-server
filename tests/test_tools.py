@@ -23,10 +23,10 @@ async def test_execute_query(mock_make_request):
 
     async with Client(mcp) as client:
         # Execute
-        result = await client.call_tool("execute_query", {"query":"up"})
+        result = await client.call_tool("execute_query", {"query":"up", "tenant":"default"})
 
         # Verify
-        mock_make_request.assert_called_once_with("query", params={"query": "up"})
+        mock_make_request.assert_called_once_with("query", params={"query": "up"}, tenant_name="default")
         assert result.data["resultType"] == "vector"
         assert len(result.data["result"]) == 1
 
@@ -41,10 +41,10 @@ async def test_execute_query_with_time(mock_make_request):
 
     async with Client(mcp) as client:
         # Execute
-        result = await client.call_tool("execute_query", {"query":"up", "time":"2023-01-01T00:00:00Z"})
+        result = await client.call_tool("execute_query", {"query":"up", "time":"2023-01-01T00:00:00Z", "tenant": "default"})
         
         # Verify
-        mock_make_request.assert_called_once_with("query", params={"query": "up", "time": "2023-01-01T00:00:00Z"})
+        mock_make_request.assert_called_once_with("query", params={"query": "up", "time": "2023-01-01T00:00:00Z"}, tenant_name="default")
         assert result.data["resultType"] == "vector"
 
 @pytest.mark.asyncio
@@ -69,7 +69,8 @@ async def test_execute_range_query(mock_make_request):
             "query": "up", 
             "start": "2023-01-01T00:00:00Z", 
             "end": "2023-01-01T01:00:00Z", 
-            "step": "15s"
+            "step": "15s",
+            "tenant": "default"
         })
 
         # Verify
@@ -78,7 +79,7 @@ async def test_execute_range_query(mock_make_request):
             "start": "2023-01-01T00:00:00Z",
             "end": "2023-01-01T01:00:00Z",
             "step": "15s"
-        })
+        }, tenant_name="default")
         assert result.data["resultType"] == "matrix"
         assert len(result.data["result"]) == 1
         assert len(result.data["result"][0]["values"]) == 2
@@ -91,11 +92,14 @@ async def test_list_metrics(mock_make_request):
 
     async with Client(mcp) as client:
         # Execute
-        result = await client.call_tool("list_metrics", {})
+        result = await client.call_tool("list_metrics", {"tenant":"default"})
+
+        payload = result.content[0].text
+        json_data = json.loads(payload)
 
         # Verify
-        mock_make_request.assert_called_once_with("label/__name__/values", params=None)
-        assert result.data == ["up", "go_goroutines", "http_requests_total"]
+        mock_make_request.assert_called_once_with("label/__name__/values", params=None, tenant_name="default")
+        assert json_data["metrics"] == ["up", "go_goroutines", "http_requests_total"]
 
 @pytest.mark.asyncio
 async def test_get_metric_metadata(mock_make_request):
@@ -107,16 +111,16 @@ async def test_get_metric_metadata(mock_make_request):
 
     async with Client(mcp) as client:
         # Execute
-        result = await client.call_tool("get_metric_metadata", {"metric":"up"})
+        result = await client.call_tool("get_metric_metadata", {"metric":"up", "tenant":"default"})
 
         payload = result.content[0].text
         json_data = json.loads(payload)
 
         # Verify
-        mock_make_request.assert_called_once_with("metadata", params={"metric": "up"})
-        assert len(json_data) == 1
-        assert json_data[0]["metric"] == "up"
-        assert json_data[0]["type"] == "gauge"
+        mock_make_request.assert_called_once_with("metadata", params={"metric": "up"}, tenant_name="default")
+        assert len(json_data["metadata"]) == 1
+        assert json_data["metadata"][0]["metric"] == "up"
+        assert json_data["metadata"][0]["type"] == "gauge"
 
 @pytest.mark.asyncio
 async def test_get_targets(mock_make_request):
@@ -131,13 +135,13 @@ async def test_get_targets(mock_make_request):
 
     async with Client(mcp) as client:
         # Execute
-        result = await client.call_tool("get_targets",{})
+        result = await client.call_tool("get_targets",{"tenant":"default"})
 
         payload = result.content[0].text
         json_data = json.loads(payload)
 
         # Verify
-        mock_make_request.assert_called_once_with("targets")
+        mock_make_request.assert_called_once_with("targets", tenant_name="default")
         assert len(json_data["activeTargets"]) == 1
         assert json_data["activeTargets"][0]["health"] == "up"
         assert len(json_data["droppedTargets"]) == 0
@@ -152,11 +156,13 @@ async def test_list_metrics_with_limit(mock_make_request):
     
     async with Client(mcp) as client:
         # Execute
-        result = await client.call_tool("list_metrics", {"limit": 2})
+        result = await client.call_tool("list_metrics", {"limit": 2, "tenant": "default"})
         
+        payload = result.content[0].text
+        json_data = json.loads(payload)
         # Verify
-        mock_make_request.assert_called_once_with("label/__name__/values", params={"limit": 2})
-        assert result.data == ["up", "go_goroutines"]
+        mock_make_request.assert_called_once_with("label/__name__/values", params={"limit": 2}, tenant_name="default")
+        assert json_data["metrics"] == ["up", "go_goroutines"]
 
 @pytest.mark.asyncio
 async def test_list_metrics_without_limit(mock_make_request):
@@ -166,11 +172,14 @@ async def test_list_metrics_without_limit(mock_make_request):
     
     async with Client(mcp) as client:
         # Execute
-        result = await client.call_tool("list_metrics", {})
+        result = await client.call_tool("list_metrics", {"tenant": "default"})
         
+        payload = result.content[0].text
+        json_data = json.loads(payload)
+
         # Verify
-        mock_make_request.assert_called_once_with("label/__name__/values", params=None)
-        assert result.data == ["up", "go_goroutines", "http_requests_total"]
+        mock_make_request.assert_called_once_with("label/__name__/values", params=None, tenant_name="default")
+        assert json_data["metrics"] == ["up", "go_goroutines", "http_requests_total"]
 
 @pytest.mark.asyncio
 async def test_get_metric_metadata_with_limit(mock_make_request):
@@ -182,15 +191,15 @@ async def test_get_metric_metadata_with_limit(mock_make_request):
 
     async with Client(mcp) as client:
         # Execute
-        result = await client.call_tool("get_metric_metadata", {"metric": "up", "limit": 1})
+        result = await client.call_tool("get_metric_metadata", {"metric": "up", "limit": 1, "tenant": "default"})
 
         payload = result.content[0].text
         json_data = json.loads(payload)
 
         # Verify
-        mock_make_request.assert_called_once_with("metadata", params={"metric": "up", "limit": 1})
-        assert len(json_data) == 1
-        assert json_data[0]["metric"] == "up"
+        mock_make_request.assert_called_once_with("metadata", params={"metric": "up", "limit": 1}, tenant_name="default")
+        assert len(json_data["metadata"]) == 1
+        assert json_data["metadata"][0]["metric"] == "up"
 
 @pytest.mark.asyncio
 async def test_list_labels(mock_make_request):
@@ -200,10 +209,10 @@ async def test_list_labels(mock_make_request):
 
     async with Client(mcp) as client:
         # Execute
-        result = await client.call_tool("list_labels", {})
+        result = await client.call_tool("list_labels", {"tenant":"default"})
 
         # Verify
-        mock_make_request.assert_called_once_with("labels", params=None)
+        mock_make_request.assert_called_once_with("labels", params=None, tenant_name="default")
         assert result.data == ["__name__", "job", "instance"]
 
 @pytest.mark.asyncio
@@ -214,10 +223,10 @@ async def test_list_labels_with_limit(mock_make_request):
 
     async with Client(mcp) as client:
         # Execute
-        result = await client.call_tool("list_labels", {"limit": 2})
+        result = await client.call_tool("list_labels", {"limit": 2, "tenant": "default"})
 
         # Verify
-        mock_make_request.assert_called_once_with("labels", params={"limit": 2})
+        mock_make_request.assert_called_once_with("labels", params={"limit": 2}, tenant_name="default")
         assert result.data == ["__name__", "job"]
 
 @pytest.mark.asyncio
@@ -228,10 +237,10 @@ async def test_get_label_values(mock_make_request):
 
     async with Client(mcp) as client:
         # Execute
-        result = await client.call_tool("get_label_values", {"label_name": "job"})
+        result = await client.call_tool("get_label_values", {"label_name": "job", "tenant": "default"})
 
         # Verify
-        mock_make_request.assert_called_once_with("label/job/values", params=None)
+        mock_make_request.assert_called_once_with("label/job/values", params=None, tenant_name="default")
         assert result.data == ["prometheus", "node-exporter"]
 
 @pytest.mark.asyncio
@@ -242,10 +251,10 @@ async def test_get_label_values_with_limit(mock_make_request):
 
     async with Client(mcp) as client:
         # Execute
-        result = await client.call_tool("get_label_values", {"label_name": "job", "limit": 1})
+        result = await client.call_tool("get_label_values", {"label_name": "job", "limit": 1, "tenant": "default"})
 
         # Verify
-        mock_make_request.assert_called_once_with("label/job/values", params={"limit": 1})
+        mock_make_request.assert_called_once_with("label/job/values", params={"limit": 1}, tenant_name="default")
         assert result.data == ["prometheus"]
 
 @pytest.mark.asyncio
@@ -258,13 +267,13 @@ async def test_find_series(mock_make_request):
 
     async with Client(mcp) as client:
         # Execute
-        result = await client.call_tool("find_series", {"match": ["up"]})
+        result = await client.call_tool("find_series", {"match": ["up"], "tenant": "default"})
 
         payload = result.content[0].text
         json_data = json.loads(payload)
 
         # Verify
-        mock_make_request.assert_called_once_with("series", params={"match[]": ["up"]})
+        mock_make_request.assert_called_once_with("series", params={"match[]": ["up"]}, tenant_name="default")
         assert len(json_data) == 1
         assert json_data[0]["__name__"] == "up"
 
@@ -282,7 +291,8 @@ async def test_find_series_with_limit_and_time_range(mock_make_request):
             "match": ["up", "process_start_time_seconds"],
             "limit": 1,
             "start": "2023-01-01T00:00:00Z",
-            "end": "2023-01-01T01:00:00Z"
+            "end": "2023-01-01T01:00:00Z",
+            "tenant": "default"
         })
 
         payload = result.content[0].text
@@ -294,5 +304,5 @@ async def test_find_series_with_limit_and_time_range(mock_make_request):
             "limit": 1,
             "start": "2023-01-01T00:00:00Z",
             "end": "2023-01-01T01:00:00Z"
-        })
+        }, tenant_name="default")
         assert len(json_data) == 1

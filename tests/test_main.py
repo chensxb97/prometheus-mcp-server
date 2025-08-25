@@ -27,6 +27,7 @@ def test_setup_environment_success(mock_config):
 def test_setup_environment_missing_url(mock_config):
     """Test environment setup with missing URL."""
     # Setup - mock config with no URL
+    mock_config.tenants = None
     mock_config.url = ""
     mock_config.username = None
     mock_config.password = None

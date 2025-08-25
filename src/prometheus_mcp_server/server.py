@@ -69,7 +69,7 @@ class PrometheusTenant:
 @dataclass
 class PrometheusConfig:
     """Multi-tenant Prometheus configuration."""
-    tenants: List[PrometheusTenant]
+    tenants: Dict[str, PrometheusTenant]
     default_tenant: Optional[str] = None
     # Optional Custom MCP Server Configuration
     mcp_server_config: Optional[MCPServerConfig] = None
@@ -79,9 +79,8 @@ class PrometheusConfig:
         if not self.tenants:
             raise ValueError("At least one tenant must be configured")
         
-        # Set default tenant if not specified
-        if not self.default_tenant and self.tenants:
-            self.default_tenant = self.tenants[0].name
+        if not self.default_tenant:
+            raise ValueError("Missing default tenant")
             
         # Validate default tenant exists
         if self.default_tenant and not self.get_tenant(self.default_tenant):
@@ -89,9 +88,9 @@ class PrometheusConfig:
     
     def get_tenant(self, name: str) -> Optional[PrometheusTenant]:
         """Get tenant configuration by name."""
-        for tenant in self.tenants:
-            if tenant.name == name:
-                return tenant
+        if name in self.tenants:
+            return self.tenants[name]
+        
         return None
     
     def list_tenant_names(self) -> List[str]:
@@ -108,7 +107,8 @@ def load_multi_tenant_config() -> PrometheusConfig:
     )
 
     # Check if we have a JSON configuration for multiple tenants
-    tenants_json_file = os.environ.get("PROMETHEUS_TENANTS")
+    tenants_json_file = os.environ.get("PROMETHEUS_TENANTS", "")
+    tenants_json = ""
     if tenants_json_file:
         try:
             with open(tenants_json_file, 'r') as f:
@@ -126,7 +126,7 @@ def load_multi_tenant_config() -> PrometheusConfig:
         # Multi-tenant configuration via JSON
         try:
             tenants_data = json.loads(tenants_json)
-            tenants = []
+            tenants = {}
             
             for tenant_data in tenants_data:
                 tenant = PrometheusTenant(
@@ -137,7 +137,7 @@ def load_multi_tenant_config() -> PrometheusConfig:
                     token=tenant_data.get("token"),
                     org_id=tenant_data.get("org_id")
                 )
-                tenants.append(tenant)
+                tenants[tenant_data["name"]] = tenant
             
             default_tenant = os.environ.get("PROMETHEUS_DEFAULT_TENANT")
             return PrometheusConfig(tenants=tenants, default_tenant=default_tenant, mcp_server_config=mcp_server_config)
@@ -162,7 +162,7 @@ def load_multi_tenant_config() -> PrometheusConfig:
             token=os.environ.get("PROMETHEUS_TOKEN"),
             org_id=os.environ.get("ORG_ID")
         )
-        return PrometheusConfig(tenants=[tenant], default_tenant="default", mcp_server_config=mcp_server_config)
+        return PrometheusConfig(tenants={"default": tenant}, default_tenant="default", mcp_server_config=mcp_server_config)
 
 # Load configuration
 config = load_multi_tenant_config()
@@ -342,18 +342,23 @@ async def execute_range_query(query: str, start: str, end: str, step: str, tenan
     return result
 
 @mcp.tool(description="List all available metrics in Prometheus")
-async def list_metrics(tenant: Optional[str] = None) -> Dict[str, Any]:
+async def list_metrics(limit: Optional[int] = None, tenant: Optional[str] = None) -> Dict[str, Any]:
     """Retrieve a list of all metric names available in Prometheus.
     
     Args:
+        limit: Optional maximum number of metrics to return
         tenant: Optional tenant name (default: use default tenant)
     
     Returns:
         Dictionary with metrics list and tenant information
     """
+    params = None
+    if limit is not None:
+        params = {"limit": limit}
+        
     tenant_name = tenant or config.default_tenant
     logger.info("Listing available metrics", tenant=tenant_name)
-    data = make_prometheus_request("label/__name__/values", tenant_name=tenant_name)
+    data = make_prometheus_request("label/__name__/values", params=params, tenant_name=tenant_name)
     
     result = {
         "metrics": data,
@@ -365,19 +370,23 @@ async def list_metrics(tenant: Optional[str] = None) -> Dict[str, Any]:
     return result
 
 @mcp.tool(description="Get metadata for a specific metric")
-async def get_metric_metadata(metric: str, tenant: Optional[str] = None) -> Dict[str, Any]:
+async def get_metric_metadata(metric: str, limit: Optional[int] = None, tenant: Optional[str] = None) -> Dict[str, Any]:
     """Get metadata about a specific metric.
     
     Args:
         metric: The name of the metric to retrieve metadata for
+        limit: Optional maximum number of metadata entries to return
         tenant: Optional tenant name (default: use default tenant)
         
     Returns:
         Dictionary with metadata and tenant information
     """
+    params = {"metric": metric}
+    if limit is not None:
+        params["limit"] = limit
+
     tenant_name = tenant or config.default_tenant
     logger.info("Retrieving metric metadata", metric=metric, tenant=tenant_name)
-    params = {"metric": metric}
     data = make_prometheus_request("metadata", params=params, tenant_name=tenant_name)
     
     result = {
@@ -508,9 +517,9 @@ async def get_label_values(label_name: str, limit: Optional[int] = None, tenant:
     if limit is not None:
         params["limit"] = limit
     
-    logger.info("Retrieving label values", label_name=label_name, limit=limit)
-    data = make_prometheus_request(f"label/{label_name}/values", params=params if params else None)
-    logger.info("Label values retrieved", label_name=label_name, values_count=len(data), limit=limit)
+    logger.info("Retrieving label values", label_name=label_name, limit=limit, tenant_name=tenant_name)
+    data = make_prometheus_request(f"label/{label_name}/values", params=params if params else None, tenant_name=tenant_name)
+    logger.info("Label values retrieved", label_name=label_name, values_count=len(data), limit=limit, tenant_name=tenant_name)
     return data
 
 @mcp.tool(description="Find time series by label matchers")

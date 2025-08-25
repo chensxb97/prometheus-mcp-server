@@ -29,7 +29,7 @@ def test_make_prometheus_request_no_auth(mock_get, mock_response):
     config.token = ""
 
     # Execute
-    result = make_prometheus_request("query", {"query": "up"})
+    result = make_prometheus_request("query", {"query": "up", "tenant_name":"default"})
 
     # Verify
     mock_get.assert_called_once()
@@ -46,7 +46,7 @@ def test_make_prometheus_request_with_basic_auth(mock_get, mock_response):
     config.token = ""
 
     # Execute
-    result = make_prometheus_request("query", {"query": "up"})
+    result = make_prometheus_request("query", {"query": "up", "tenant_name":"default"})
 
     # Verify
     mock_get.assert_called_once()
@@ -63,7 +63,7 @@ def test_make_prometheus_request_with_token_auth(mock_get, mock_response):
     config.token = "token123"
 
     # Execute
-    result = make_prometheus_request("query", {"query": "up"})
+    result = make_prometheus_request("query", {"query": "up", "tenant_name":"default"})
 
     # Verify
     mock_get.assert_called_once()
@@ -80,5 +80,5 @@ def test_make_prometheus_request_error(mock_get):
     config.url = "http://test:9090"
 
     # Execute and verify
-    with pytest.raises(ValueError, match="Prometheus API error: Test error"):
-        make_prometheus_request("query", {"query": "up"})
+    with pytest.raises(ValueError, match="Prometheus API error for tenant 'default': Test error"):
+        make_prometheus_request("query", {"query": "up", "tenant_name":"default"})

@@ -13,8 +13,10 @@ def setup_environment():
     else:
         logger.info("Environment configuration loaded", source="environment variables", note="No .env file found")
 
+
     # Validate tenant configuration
     if not config.tenants:
+        # Validate single tenant configuration
         logger.error(
             "Missing required configuration",
             error="No tenants configured",
@@ -68,12 +70,19 @@ def setup_environment():
                 example="8080"
             )
             return False
-    logger.info(
-        "MCP server configuration validated",
-        transport=mcp_config.mcp_server_transport,
-        host=mcp_config.mcp_bind_host,
-        port=mcp_config.mcp_bind_port
-    )
+        
+        logger.info(
+            "MCP server configuration validated",
+            transport=mcp_config.mcp_server_transport,
+            host=mcp_config.mcp_bind_host,
+            port=mcp_config.mcp_bind_port
+        )
+
+    else:
+        logger.info(
+            "MCP server configuration validated",
+            mcp_server_config=mcp_config
+        )
     
     return True
 
